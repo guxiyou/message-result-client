@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading.Tasks;
 using NetMQ;
 
 namespace Client
@@ -8,23 +7,34 @@ namespace Client
 	{
 		static void Main(string[] args)
 		{
+			Console.Write("Set TcpKeepAlive (Y/N)? ");
+			var response = Console.ReadLine();
+
+			bool keepAlive = "Y".Equals(response, StringComparison.OrdinalIgnoreCase);
 			using (NetMQContext context = NetMQContext.Create())
 			using (NetMQSocket subscribeSocket = context.CreateSubscriberSocket())
 			{
-				subscribeSocket.Connect("tcp://127.0.0.1:5002");
+				subscribeSocket.Connect("tcp://evolution:5002");
 				subscribeSocket.ReceiveReady += SubSocketOnReceiveReady;
-				subscribeSocket.Subscribe(""); //Prefix of messages to receive. Empty string receives all messages
-				subscribeSocket.Options.TcpKeepalive = true;
-				subscribeSocket.Options.TcpKeepaliveIdle = TimeSpan.FromSeconds(5);
-				subscribeSocket.Options.TcpKeepaliveInterval = TimeSpan.FromSeconds(1);
+				subscribeSocket.Subscribe(string.Empty); //Prefix of messages to receive. Empty string receives all messages
 
-				Poller poller = new Poller();
-				poller.AddSocket(subscribeSocket);
-				Task.Factory.StartNew(poller.Start);
-				Console.WriteLine("Waiting to receive messages.  Press 'q' to quit.");
-				while (Console.ReadLine() != "q")
-				{ }
-				poller.Stop(true);
+				if (keepAlive)
+				{
+					Console.WriteLine("TcpKeepAlive set to: true");
+					subscribeSocket.Options.TcpKeepalive = true;
+					subscribeSocket.Options.TcpKeepaliveIdle = TimeSpan.FromSeconds(5);
+					subscribeSocket.Options.TcpKeepaliveInterval = TimeSpan.FromSeconds(1);
+				}
+				else
+				{
+					Console.WriteLine("TcpKeepAlive set to: false");
+					subscribeSocket.Options.TcpKeepalive = false;
+				}
+				while (true)
+				{
+					NetMQMessage message = subscribeSocket.ReceiveMessage();
+					Console.WriteLine("Message Received: " + DateTime.Now);
+				}
 			}
 		}
 
@@ -32,11 +42,7 @@ namespace Client
 		{
 			NetMQMessage message = args.Socket.ReceiveMessage();
 
-			Console.WriteLine("Message Received:");
-			foreach (NetMQFrame frame in message)
-			{
-				Console.WriteLine("\t{0}", frame.ConvertToString());
-			}
+			Console.WriteLine("Message Received: " + DateTime.Now);
 		}
 	}
 }
